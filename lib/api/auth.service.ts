@@ -1,45 +1,30 @@
-import { api } from "./axios";
-import { sha256 } from "@/lib/hash";
-import type { AuthInput, RecordsListResponse, SingleRecordResponse } from "@/types/api";
-import type { UserRecord } from "@/types/users";
+import type { AuthInput } from "@/types/api";
+import type { SessionUser } from "@/types/users";
 
-const RECORDS = "/collections/users/records";
+// คุยกับ route handlers ของเราเอง (/api/auth/*) — ฝั่ง server เป็นคนตรวจรหัส
+// เซ็น JWT และ set httpOnly cookie ให้ (JS ฝั่งนี้ไม่เคยเห็น token เลย)
 
-async function findUserByEmail(email: string): Promise<UserRecord | undefined> {
-  const res = await api.get<RecordsListResponse>(RECORDS, {
-    params: { limit: 100 },
+async function post<T>(url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
   });
-  return res.data.data.find((r) => r.data.email === email);
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.error ?? "Something went wrong");
+  }
+  return json;
 }
 
-export async function login({ email, password }: AuthInput) {
-  const user = await findUserByEmail(email);
-  const hashed = await sha256(password);
-
-  if (!user || user.data.password !== hashed) {
-    throw new Error("Invalid email or password");
-  }
-
-  return { token: crypto.randomUUID(), user };
+export async function login(input: AuthInput) {
+  return post<{ user: SessionUser }>("/api/auth/sign-in", input);
 }
 
-export async function register({ email, password }: AuthInput) {
-  const existing = await findUserByEmail(email);
-  if (existing) {
-    throw new Error("This email is already registered");
-  }
+export async function register(input: AuthInput) {
+  return post<{ user: SessionUser }>("/api/auth/sign-up", input);
+}
 
-  const hashed = await sha256(password);
-  const res = await api.post<SingleRecordResponse>(RECORDS, {
-    data: {
-      email,
-      password: hashed,
-      first_name: "",
-      last_name: "",
-      gender: 3,
-      age: 0,
-    },
-  });
-
-  return { token: crypto.randomUUID(), user: res.data.data };
+export async function signOut() {
+  return post<{ ok: boolean }>("/api/auth/sign-out");
 }

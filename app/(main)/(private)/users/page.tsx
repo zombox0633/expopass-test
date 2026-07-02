@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dayjs from "dayjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GENDER_LABEL } from "@/constraints/gender.data";
 import { UserData, UserRecord } from "@/types/users";
@@ -53,13 +54,14 @@ export default function UsersPage() {
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Gender</th>
               <th className="px-4 py-3">Age</th>
+              <th className="px-4 py-3">Updated</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {isPending && (
               <tr>
-                <td colSpan={5} className="text-foreground/50 px-4 py-10 text-center">
+                <td colSpan={6} className="text-foreground/50 px-4 py-10 text-center">
                   Loading users...
                 </td>
               </tr>
@@ -67,7 +69,7 @@ export default function UsersPage() {
 
             {isError && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-red-500">
+                <td colSpan={6} className="px-4 py-10 text-center text-red-500">
                   Failed to load users: {error.message}
                 </td>
               </tr>
@@ -90,6 +92,9 @@ export default function UsersPage() {
                   {GENDER_LABEL[user.data.gender] ?? "-"}
                 </td>
                 <td className="text-foreground/60 px-4 py-3">{user.data.age}</td>
+                <td className="text-foreground/60 px-4 py-3 whitespace-nowrap">
+                  {dayjs(user.updated_at).format("DD MMM YYYY HH:mm")}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
                     <button
@@ -113,7 +118,7 @@ export default function UsersPage() {
 
             {!isPending && !isError && users.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-foreground/50 px-4 py-10 text-center">
+                <td colSpan={6} className="text-foreground/50 px-4 py-10 text-center">
                   No users left.
                 </td>
               </tr>

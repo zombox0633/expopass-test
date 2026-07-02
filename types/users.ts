@@ -13,3 +13,10 @@ export type UserRecord = {
   updated_at: string;
   data: UserData;
 };
+
+export type SessionUser = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+};
