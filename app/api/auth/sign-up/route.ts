@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import { sha256 } from "@/lib/hash";
 import { signToken } from "@/lib/server/jwt";
 import { createUser, findUserByEmail } from "@/lib/server/users.repo";
+import { signUpSchema } from "@/lib/schemas/auth.schema";
 import type { SessionUser } from "@/types/users";
 
 export async function POST(request: Request) {
-  const { email, password } = await request.json();
-
-  if (!email || !password) {
-    return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+  const parsed = signUpSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
+  const { email, password } = parsed.data;
 
   const existing = await findUserByEmail(email);
   if (existing) {

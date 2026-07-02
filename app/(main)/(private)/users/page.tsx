@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GENDER_LABEL } from "@/constraints/gender.data";
@@ -8,15 +9,37 @@ import { UserData, UserRecord } from "@/types/users";
 import { deleteUser, getUsers, updateUser } from "./service";
 import { DeleteUserModal, EditUserModal } from "./actions";
 
+const PAGE_SIZES = [5, 10, 20, 50];
+const DEFAULT_PAGE_SIZE = 10;
+
 export default function UsersPage() {
-  const [page, setPage] = useState(1);
+  return (
+    <Suspense>
+      <UsersPageContent />
+    </Suspense>
+  );
+}
+
+function UsersPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // อ่าน page/limit จาก URL → refresh/แชร์ลิงก์แล้วยังอยู่ตำแหน่งเดิม
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const limitParam = Number(searchParams.get("limit"));
+  const limit = PAGE_SIZES.includes(limitParam) ? limitParam : DEFAULT_PAGE_SIZE;
+
+  function goTo(nextPage: number, nextLimit: number) {
+    router.push(`/users?page=${nextPage}&limit=${nextLimit}`);
+  }
+
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [deletingUser, setDeletingUser] = useState<UserRecord | null>(null);
 
   const queryClient = useQueryClient();
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ["users", page],
-    queryFn: () => getUsers(page),
+    queryKey: ["users", page, limit],
+    queryFn: () => getUsers(page, limit),
   });
 
   const users = data?.data ?? [];
@@ -127,26 +150,43 @@ export default function UsersPage() {
         </table>
       </section>
 
-      <section className="flex items-center justify-end gap-3">
-        <button
-          type="button"
-          disabled={page <= 1}
-          onClick={() => setPage((p) => p - 1)}
-          className="border-foreground/20 hover:border-foreground border-2 px-4 py-2 text-xs font-bold tracking-[0.06em] uppercase transition-colors disabled:pointer-events-none disabled:opacity-40"
-        >
-          Prev
-        </button>
-        <span className="text-foreground/60 text-sm">
-          Page {page} / {data?.meta.pages ?? "-"}
-        </span>
-        <button
-          type="button"
-          disabled={!data || page >= data.meta.pages}
-          onClick={() => setPage((p) => p + 1)}
-          className="border-foreground/20 hover:border-foreground border-2 px-4 py-2 text-xs font-bold tracking-[0.06em] uppercase transition-colors disabled:pointer-events-none disabled:opacity-40"
-        >
-          Next
-        </button>
+      <section className="flex items-center justify-between gap-3">
+        <label className="text-foreground/60 flex items-center gap-2 text-sm">
+          Per page
+          <select
+            value={limit}
+            onChange={(e) => goTo(1, Number(e.target.value))}
+            className="border-foreground/20 bg-background focus:border-foreground border-2 px-3 py-2 text-sm focus:outline-none"
+          >
+            {PAGE_SIZES.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => goTo(page - 1, limit)}
+            className="border-foreground/20 hover:border-foreground border-2 px-4 py-2 text-xs font-bold tracking-[0.06em] uppercase transition-colors disabled:pointer-events-none disabled:opacity-40"
+          >
+            Prev
+          </button>
+          <span className="text-foreground/60 text-sm">
+            Page {page} / {data?.meta.pages ?? "-"}
+          </span>
+          <button
+            type="button"
+            disabled={!data || page >= data.meta.pages}
+            onClick={() => goTo(page + 1, limit)}
+            className="border-foreground/20 hover:border-foreground border-2 px-4 py-2 text-xs font-bold tracking-[0.06em] uppercase transition-colors disabled:pointer-events-none disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       </section>
 
       {editingUser && (

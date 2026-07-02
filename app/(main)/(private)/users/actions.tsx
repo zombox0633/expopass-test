@@ -5,6 +5,8 @@ import { TextField } from "@/components/input/text-field";
 import { ModalShell } from "@/components/modal-shell";
 import { GENDERS } from "@/constraints/gender.data";
 import { UserData, UserRecord } from "@/types/users";
+import { stripDigits } from "@/lib/common";
+import { userDataSchema } from "@/lib/schemas/user.schema";
 
 export function EditUserModal({
   user,
@@ -18,6 +20,7 @@ export function EditUserModal({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<UserData>(user.data);
+  const [formError, setFormError] = useState<string | null>(null);
 
   return (
     <ModalShell size="lg" onClose={onClose}>
@@ -25,6 +28,14 @@ export function EditUserModal({
         className="flex flex-col gap-6"
         onSubmit={(e) => {
           e.preventDefault();
+          setFormError(null);
+
+          // ตรวจ shape ด้วย zod ก่อนส่งขึ้น API
+          const parsed = userDataSchema.safeParse(form);
+          if (!parsed.success) {
+            setFormError(parsed.error.issues[0].message);
+            return;
+          }
           onSave(form);
         }}
       >
@@ -37,14 +48,16 @@ export function EditUserModal({
               label="First name"
               value={form.first_name}
               required
-              onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+              title="Name cannot contain numbers"
+              onChange={(e) => setForm({ ...form, first_name: stripDigits(e.target.value) })}
             />
             <TextField
               id="last_name"
               label="Last name"
               value={form.last_name}
               required
-              onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+              title="Name cannot contain numbers"
+              onChange={(e) => setForm({ ...form, last_name: stripDigits(e.target.value) })}
             />
           </div>
 
@@ -91,6 +104,12 @@ export function EditUserModal({
             />
           </div>
         </div>
+
+        {formError && (
+          <p className="border-2 border-red-500/40 px-4 py-3 text-sm font-bold text-red-500">
+            {formError}
+          </p>
+        )}
 
         <div className="flex gap-3">
           <button

@@ -10,7 +10,7 @@ import { PasswordField } from "@/components/input/password-field";
 import { Logo } from "@/components/logo";
 import { register } from "@/lib/api/auth.service";
 import { useAuthStore } from "@/store/auth.store";
-import { validatePassword } from "@/lib/common";
+import { signUpSchema } from "@/lib/schemas/auth.schema";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -33,9 +33,9 @@ export default function RegisterPage() {
     e.preventDefault();
     setFormError(null);
 
-    const passwordError = validatePassword(password);
-    if (passwordError) {
-      setFormError(passwordError);
+    const parsed = signUpSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      setFormError(parsed.error.issues[0].message);
       return;
     }
     if (password !== confirmPassword) {
@@ -43,7 +43,7 @@ export default function RegisterPage() {
       return;
     }
 
-    registerMutation.mutate({ email, password });
+    registerMutation.mutate(parsed.data);
   }
 
   const errorMessage =

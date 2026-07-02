@@ -4,8 +4,10 @@ import type { UserData } from "@/types/users";
 
 const RECORDS = "/collections/users/records";
 
-export async function getUsers(page = 1) {
-  const res = await api.get<RecordsListResponse>(RECORDS, { params: { page } });
+export async function getUsers(page = 1, limit = 10) {
+  const res = await api.get<RecordsListResponse>(RECORDS, {
+    params: { page, limit },
+  });
   return res.data;
 }
 

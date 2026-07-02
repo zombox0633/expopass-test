@@ -10,8 +10,11 @@ const robotoMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Expopass Test",
-  description: "Frontend developer test",
+  title: {
+    default: "Expo Pass",
+    template: "%s | Expo Pass", // หน้าลูกที่ตั้ง title จะกลายเป็น "Sign In | Expo Pass"
+  },
+  description: "Register, login, and user management wired to a live API.",
 };
 
 export default function RootLayout({
