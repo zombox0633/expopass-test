@@ -1,16 +1,17 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GENDER_LABEL } from "@/constraints/gender.data";
 import { UserData, UserRecord } from "@/types/users";
-import { deleteUser, getUsers, updateUser } from "./service";
+import { deleteUser, getUsers, searchUsers, updateUser } from "./service";
 import { DeleteUserModal, EditUserModal } from "./actions";
 
 const PAGE_SIZES = [5, 10, 20, 50];
 const DEFAULT_PAGE_SIZE = 10;
+const MIN_SEARCH_LENGTH = 3; // พิมพ์ครบก่อนค่อยยิงค้นหา
 
 export default function UsersPage() {
   return (
@@ -24,22 +25,37 @@ function UsersPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // อ่าน page/limit จาก URL → refresh/แชร์ลิงก์แล้วยังอยู่ตำแหน่งเดิม
+  // อ่าน page/limit/search จาก URL → refresh/แชร์ลิงก์แล้วยังอยู่ตำแหน่งเดิม
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const limitParam = Number(searchParams.get("limit"));
   const limit = PAGE_SIZES.includes(limitParam) ? limitParam : DEFAULT_PAGE_SIZE;
+  const search = searchParams.get("search") ?? "";
+  const isSearching = search.length >= MIN_SEARCH_LENGTH;
 
-  function goTo(nextPage: number, nextLimit: number) {
-    router.push(`/users?page=${nextPage}&limit=${nextLimit}`);
+  function goTo(nextPage: number, nextLimit: number, nextSearch = search) {
+    const params = new URLSearchParams({ page: String(nextPage), limit: String(nextLimit) });
+    if (nextSearch) params.set("search", nextSearch);
+    router.push(`/users?${params}`);
   }
+
+  // ยิงค้นหาเมื่อพิมพ์ครบ 3 ตัวอักษรเท่านั้น (debounce 400ms กันยิงทุกตัวอักษร)
+  // ต่ำกว่านั้นถือว่าไม่ค้น → กลับไปแสดงรายการปกติ
+  const [searchInput, setSearchInput] = useState(search);
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+    const nextSearch = trimmed.length >= MIN_SEARCH_LENGTH ? trimmed : "";
+    if (nextSearch === search) return;
+    const timer = setTimeout(() => goTo(1, limit, nextSearch), 400);
+    return () => clearTimeout(timer);
+  });
 
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [deletingUser, setDeletingUser] = useState<UserRecord | null>(null);
 
   const queryClient = useQueryClient();
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ["users", page, limit],
-    queryFn: () => getUsers(page, limit),
+    queryKey: ["users", page, limit, isSearching ? search : ""],
+    queryFn: () => (isSearching ? searchUsers(page, limit, search) : getUsers(page, limit)),
   });
 
   const users = data?.data ?? [];
@@ -67,6 +83,35 @@ function UsersPageContent() {
         <p className="text-foreground/60 text-sm">
           {data?.meta.total ?? 0} users — edit or delete from the actions column.
         </p>
+      </section>
+
+      <section className="flex flex-col gap-1">
+        <div className="flex items-center gap-3">
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by name or email (min 3 characters)"
+            className="border-foreground/20 bg-background focus:border-foreground w-full max-w-sm border-2 px-3 py-2 text-sm focus:outline-none"
+          />
+          {isSearching && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchInput("");
+                goTo(1, limit, "");
+              }}
+              className="border-foreground/20 hover:border-foreground border-2 px-4 py-2 text-xs font-bold tracking-[0.06em] whitespace-nowrap uppercase transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {searchInput.trim().length > 0 && searchInput.trim().length < MIN_SEARCH_LENGTH && (
+          <p className="text-foreground/50 text-xs">
+            Type at least {MIN_SEARCH_LENGTH} characters to search.
+          </p>
+        )}
       </section>
 
       <section className="border-foreground/15 overflow-x-auto border-2">
@@ -116,7 +161,7 @@ function UsersPageContent() {
                 </td>
                 <td className="text-foreground/60 px-4 py-3">{user.data.age}</td>
                 <td className="text-foreground/60 px-4 py-3 whitespace-nowrap">
-                  {dayjs(user.updated_at).format("DD MMM YYYY HH:mm")}
+                  {dayjs(user.updated_at).format("DD/MM/YYYY HH:mm")}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
@@ -142,7 +187,7 @@ function UsersPageContent() {
             {!isPending && !isError && users.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-foreground/50 px-4 py-10 text-center">
-                  No users left.
+                  {isSearching ? `No users match "${search}".` : "No users left."}
                 </td>
               </tr>
             )}

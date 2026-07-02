@@ -3,7 +3,6 @@ import type { SessionUser } from "@/types/users";
 
 // คุยกับ route handlers ของเราเอง (/api/auth/*) — ฝั่ง server เป็นคนตรวจรหัส
 // เซ็น JWT และ set httpOnly cookie ให้ (JS ฝั่งนี้ไม่เคยเห็น token เลย)
-
 async function post<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
