@@ -1,34 +1,47 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
-import { TextField } from "@/components/input/text-field";
-import { ModalShell } from "@/components/modal-shell";
-import { MOCK_USERS } from "@/constraints/users.mock";
-import { User } from "@/types/users";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { GENDER_LABEL } from "@/constraints/gender.data";
+import { UserData, UserRecord } from "@/types/users";
+import { deleteUser, getUsers, updateUser } from "./service";
+import { DeleteUserModal, EditUserModal } from "./actions";
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [page, setPage] = useState(1);
+  const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserRecord | null>(null);
 
-  // TODO: replace local state with reqres API (GET/PUT/DELETE /api/users)
-  function handleSaveEdit(updated: User) {
-    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-    setEditingUser(null);
-  }
+  const queryClient = useQueryClient();
+  const { data, isPending, isError, error } = useQuery({
+    queryKey: ["users", page],
+    queryFn: () => getUsers(page),
+  });
 
-  function handleConfirmDelete(id: number) {
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    setDeletingUser(null);
-  }
+  const users = data?.data ?? [];
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UserData }) => updateUser(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setEditingUser(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setDeletingUser(null);
+    },
+  });
 
   return (
     <div className="flex flex-col gap-8 py-10">
       <section className="flex flex-col gap-2">
         <h1 className="tracking-[-0.08em] uppercase">User_List</h1>
         <p className="text-foreground/60 text-sm">
-          {users.length} users — edit or delete from the actions column.
+          {data?.meta.total ?? 0} users — edit or delete from the actions column.
         </p>
       </section>
 
@@ -38,10 +51,28 @@ export default function UsersPage() {
             <tr className="border-foreground/15 border-b-2 text-xs font-bold tracking-[0.2em] uppercase">
               <th className="px-4 py-3">User</th>
               <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3">Gender</th>
+              <th className="px-4 py-3">Age</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
+            {isPending && (
+              <tr>
+                <td colSpan={5} className="text-foreground/50 px-4 py-10 text-center">
+                  Loading users...
+                </td>
+              </tr>
+            )}
+
+            {isError && (
+              <tr>
+                <td colSpan={5} className="px-4 py-10 text-center text-red-500">
+                  Failed to load users: {error.message}
+                </td>
+              </tr>
+            )}
+
             {users.map((user) => (
               <tr
                 key={user.id}
@@ -49,19 +80,16 @@ export default function UsersPage() {
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <Image
-                      src={user.avatar}
-                      alt={`${user.first_name} ${user.last_name}`}
-                      width={36}
-                      height={36}
-                      className="border-foreground/15 border-2"
-                    />
                     <span className="font-bold">
-                      {user.first_name} {user.last_name}
+                      {user.data.first_name} {user.data.last_name}
                     </span>
                   </div>
                 </td>
-                <td className="text-foreground/60 px-4 py-3">{user.email}</td>
+                <td className="text-foreground/60 px-4 py-3">{user.data.email}</td>
+                <td className="text-foreground/60 px-4 py-3">
+                  {GENDER_LABEL[user.data.gender] ?? "-"}
+                </td>
+                <td className="text-foreground/60 px-4 py-3">{user.data.age}</td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
                     <button
@@ -82,9 +110,10 @@ export default function UsersPage() {
                 </td>
               </tr>
             ))}
-            {users.length === 0 && (
+
+            {!isPending && !isError && users.length === 0 && (
               <tr>
-                <td colSpan={3} className="text-foreground/50 px-4 py-10 text-center">
+                <td colSpan={5} className="text-foreground/50 px-4 py-10 text-center">
                   No users left.
                 </td>
               </tr>
@@ -93,10 +122,33 @@ export default function UsersPage() {
         </table>
       </section>
 
+      <section className="flex items-center justify-end gap-3">
+        <button
+          type="button"
+          disabled={page <= 1}
+          onClick={() => setPage((p) => p - 1)}
+          className="border-foreground/20 hover:border-foreground border-2 px-4 py-2 text-xs font-bold tracking-[0.06em] uppercase transition-colors disabled:pointer-events-none disabled:opacity-40"
+        >
+          Prev
+        </button>
+        <span className="text-foreground/60 text-sm">
+          Page {page} / {data?.meta.pages ?? "-"}
+        </span>
+        <button
+          type="button"
+          disabled={!data || page >= data.meta.pages}
+          onClick={() => setPage((p) => p + 1)}
+          className="border-foreground/20 hover:border-foreground border-2 px-4 py-2 text-xs font-bold tracking-[0.06em] uppercase transition-colors disabled:pointer-events-none disabled:opacity-40"
+        >
+          Next
+        </button>
+      </section>
+
       {editingUser && (
         <EditUserModal
           user={editingUser}
-          onSave={handleSaveEdit}
+          isSaving={updateMutation.isPending}
+          onSave={(data) => updateMutation.mutate({ id: editingUser.id, data })}
           onClose={() => setEditingUser(null)}
         />
       )}
@@ -104,119 +156,11 @@ export default function UsersPage() {
       {deletingUser && (
         <DeleteUserModal
           user={deletingUser}
-          onConfirm={handleConfirmDelete}
+          isDeleting={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deletingUser.id)}
           onClose={() => setDeletingUser(null)}
         />
       )}
     </div>
-  );
-}
-
-function EditUserModal({
-  user,
-  onSave,
-  onClose,
-}: {
-  user: User;
-  onSave: (updated: User) => void;
-  onClose: () => void;
-}) {
-  const [form, setForm] = useState(user);
-
-  return (
-    <ModalShell onClose={onClose}>
-      <form
-        className="flex flex-col gap-6"
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSave(form);
-        }}
-      >
-        <h2 className="tracking-[-0.03em] uppercase">Edit_User</h2>
-
-        <div className="flex flex-col gap-4">
-          <TextField
-            id="first_name"
-            label="First name"
-            value={form.first_name}
-            required
-            onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-          />
-          <TextField
-            id="last_name"
-            label="Last name"
-            value={form.last_name}
-            required
-            onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-          />
-          <TextField
-            id="email"
-            label="Email"
-            type="email"
-            value={form.email}
-            required
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-          />
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="border-foreground/20 hover:border-foreground flex-1 border-2 py-3 text-sm font-bold tracking-[0.06em] uppercase transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="bg-foreground text-background hover:bg-foreground/80 flex-1 py-3 text-sm font-extrabold tracking-[0.06em] uppercase transition-colors"
-          >
-            Save
-          </button>
-        </div>
-      </form>
-    </ModalShell>
-  );
-}
-
-function DeleteUserModal({
-  user,
-  onConfirm,
-  onClose,
-}: {
-  user: User;
-  onConfirm: (id: number) => void;
-  onClose: () => void;
-}) {
-  return (
-    <ModalShell onClose={onClose}>
-      <div className="flex flex-col gap-6">
-        <h2 className="tracking-[-0.03em] uppercase">Delete_User</h2>
-        <p className="text-foreground/60 text-sm">
-          Delete{" "}
-          <span className="text-foreground font-bold">
-            {user.first_name} {user.last_name}
-          </span>
-          ? This action cannot be undone.
-        </p>
-
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="border-foreground/20 hover:border-foreground flex-1 border-2 py-3 text-sm font-bold tracking-[0.06em] uppercase transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(user.id)}
-            className="flex-1 bg-red-500 py-3 text-sm font-extrabold tracking-[0.06em] text-white uppercase transition-colors hover:bg-red-600"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </ModalShell>
   );
 }

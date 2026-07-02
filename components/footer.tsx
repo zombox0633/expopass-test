@@ -1,6 +1,6 @@
 export function Footer() {
   return (
-    <footer className="border-foreground/10 text-foreground/50 border-2 border-t py-4 text-center text-sm">
+    <footer className="border-foreground/10 text-foreground/50 border-2 border-t py-4 text-center text-sm tracking-[0.06em] uppercase">
       © 2026 · Built by{" "}
       <a
         href="https://github.com/zombox0633"
